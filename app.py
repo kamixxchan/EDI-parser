@@ -1006,60 +1006,42 @@ def inject_global_css() -> None:
         }
 
         /* ---- Sidebar workflow (widened, resizable, scrollable) ----
-        The sidebar now holds all 5 workflow steps. Streamlit's sidebar is
-        already natively resizable by dragging its right edge — the
-        section renders as a resizable wrapper with its own inline
-        `width`, and normally clamps between a small default min/max. The
-        previous CSS pinned `width`/`max-width` to a fixed `40vw` with
-        `!important`, which overrides that inline width outright and is
-        exactly why dragging the handle had no visible effect: the browser
-        was never allowed to render anything but 40vw. Setting only
-        `min-width`/`max-width` here (no fixed `width`) leaves the native
-        drag-resize working — the browser clamps the resizable library's
-        inline width to this range automatically, so the sidebar stays
-        resizable between 20vw and 45vw, defaulting to whatever width
-        Streamlit's own resize state starts at (clamped up to 20vw if it
-        would otherwise be narrower). This also leaves the fixed header,
-        main content padding, and the collapsed-sidebar control above
-        untouched, since none of them read the sidebar's width. */
-        
-
-        /* Fixed sidebar width: 40% of screen */
+        The sidebar holds all 5 workflow steps, so it needs real width, but
+        it should stay a normal, user-resizable Streamlit sidebar rather
+        than a fixed size. Streamlit's own right-edge drag handle already
+        does this natively — the section renders with its own inline
+        `width`, driven by its internal resize state — so nothing here
+        needs to reimplement dragging. All that's needed is a floor on how
+        narrow it can go: `min-width` always wins over a too-small inline
+        width (the browser enlarges the box to match it, regardless of
+        what Streamlit's own state currently holds), so this reliably
+        enforces a usable minimum without depending on Streamlit's
+        specific default/starting width — a value that isn't documented
+        and could change between versions. `max-width` is left generous
+        purely as a guard rail on very wide monitors; Streamlit's own
+        resize state is internally capped well below that on most
+        screens anyway, so in practice this rarely does anything — it's
+        just there so a pathological drag can't push the sidebar past a
+        sensible fraction of the viewport. Nothing here touches the fixed
+        header, main content padding, or the collapsed-sidebar control
+        elsewhere in this file, since none of them read the sidebar's
+        width. */
         section[data-testid="stSidebar"][aria-expanded="true"]{
-            width: 40vw !important;
-            min-width: 40vw !important;
-            max-width: 40vw !important;
-            flex: 0 0 40vw !important;
-            resize: none !important;
+            min-width: 25rem !important;
         }
-
-        /* Keep the inner sidebar wrapper the same fixed width */
-        section[data-testid="stSidebar"][aria-expanded="true"] > div{
-            width: 40vw !important;
-            min-width: 40vw !important;
-            max-width: 40vw !important;
-            resize: none !important;
-        }
-
-        /* Hide Streamlit sidebar dragging / resize handle */
-        div[data-testid="stSidebarResizeHandle"],
-        div[data-testid="stSidebarResizer"],
-        div[data-testid*="SidebarResize"],
-        div[data-testid*="SidebarResizer"]{
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            width: 0 !important;
-            min-width: 0 !important;
-            max-width: 0 !important;
-            pointer-events: none !important;
-        }
-
-        /* Remove resize cursor near the sidebar border */
-        section[data-testid="stSidebar"],
-        section[data-testid="stSidebar"] *,
-        section[data-testid="stSidebar"] + div{
-            cursor: default !important;
+        section[data-testid="stSidebar"][aria-expanded="false"]{
+            /* Streamlit's own collapse animation slides the sidebar off
+            using a pixel offset taken from its internal resize state. If
+            the sidebar's actual on-screen width is ever wider than that
+            internal value (e.g. right after load, before the user has
+            dragged anything, if Streamlit's own starting width happens to
+            be narrower than the `min-width` floor above), that offset can
+            undershoot and leave a visible sliver of sidebar behind when
+            "collapsed". A percentage-based transform instead sizes the
+            slide-off to the sidebar's real current width, so it always
+            fully clears the viewport no matter what Streamlit's own state
+            believes the width to be. */
+            transform: translateX(-100%) !important;
         }
 
         section[data-testid="stSidebar"] div[data-testid="stSidebarContent"]{
@@ -1565,37 +1547,6 @@ with st.sidebar:
         if uploaded_file is not None:
             render_uploaded_pdf_preview(uploaded_file)
 
-    # # -- Step 2 + Step 3: Format and Page Range side by side -------------------
-    # # -- Step 2 + Step 3: Format and Page Range side by side -------------------
-    # with st.container(key="sidebar_format_page_row"):
-    #     format_col, page_range_col = st.columns([0.9, 1.1])
-
-    #     with format_col:
-    #         with st.container(border=True, height=155):
-    #             render_sidebar_step_title(2, "Set Format")
-    #             st.caption("Refer to the format samples on the right.")
-    #             document_type = st.selectbox(
-    #                 "Select document format",
-    #                 options=["Formatted 1", "Formatted 2", "Other"],
-    #                 index=0,
-    #                 label_visibility="collapsed",
-    #                 help=(
-    #                     "Formatted 1 is the structured EDI guide format with Segment ID, "
-    #                     "metadata box, and Element Summary table. Other uses the generic "
-    #                     "AI extractor."
-    #                 ),
-    #             )
-
-    #     with page_range_col:
-    #         with st.container(border=True, height=155):
-    #             render_sidebar_step_title(3, "Select Page Range")
-    #             page_col1, page_col2 = st.columns(2)
-    #             with page_col1:
-    #                 page_start = st.number_input("Start", min_value=1, value=1, step=1)
-    #             with page_col2:
-    #                 page_end = st.number_input("End", min_value=1, value=1, step=1)
-
-
     # -- Step 2 + Step 3: Format and Page Range side by side -------------------
     # -- Step 2 + Step 3: Format and Page Range side by side -------------------
     with st.container(border=True):
@@ -1620,6 +1571,9 @@ with st.sidebar:
             page_start = st.number_input("Start", min_value=1, value=1, step=1)
         with page_col2:
             page_end = st.number_input("End", min_value=1, value=1, step=1)
+
+
+
 
 
     # "Other" mode AI extraction settings (DPI / Azure model) are fixed
