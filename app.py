@@ -1490,7 +1490,7 @@ from backend.export_utils import dataframe_to_excel_bytes_with_report
 from backend.extractor import extract_tables_from_pdf
 from backend.report_utils import build_extraction_report
 
-
+from streamlit_pdf_viewer import pdf_viewer
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -2650,12 +2650,11 @@ def render_sample_pdf_viewer(pdf_path: str, height: int = 420) -> None:
         st.caption(f"Could not read sample file `{pdf_path}` ({exc}).")
         return
 
-    b64 = base64.b64encode(pdf_bytes).decode("utf-8")
-    st.markdown(
-        f'<iframe src="data:application/pdf;base64,{b64}" width="100%" '
-        f'height="{height}" style="border-radius:12px; border:1px solid '
-        f'var(--eb-border);"></iframe>',
-        unsafe_allow_html=True,
+    pdf_viewer(
+        pdf_bytes,
+        width="100%",
+        height=height,
+        key=f"pdf_viewer_sample__{path.name}",
     )
     st.download_button(
         "Download",
@@ -2700,12 +2699,11 @@ def render_uploaded_pdf_preview(uploaded_file) -> None:
     """Render a collapsed-by-default inline preview of the uploaded PDF."""
     with st.expander("Preview uploaded PDF", expanded=False):
         pdf_bytes = uploaded_file.getvalue()
-        b64 = base64.b64encode(pdf_bytes).decode("utf-8")
-        st.markdown(
-            f'<iframe src="data:application/pdf;base64,{b64}" width="100%" '
-            f'height="420" style="border-radius:12px; border:1px solid '
-            f'var(--eb-border);"></iframe>',
-            unsafe_allow_html=True,
+        pdf_viewer(
+            pdf_bytes,
+            width="100%",
+            height=420,
+            key=f"pdf_viewer_uploaded__{uploaded_file.name}",
         )
 
 
