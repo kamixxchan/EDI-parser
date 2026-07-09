@@ -30,6 +30,21 @@ from backend.extractor import extract_tables_from_pdf
 from backend.report_utils import build_extraction_report
 
 from streamlit_pdf_viewer import pdf_viewer
+
+
+
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    [data-testid="stStatusWidget"] {visibility: hidden;}
+    .stDeployButton {display: none;}
+    [data-testid="stDecoration"] {display: none;}
+    div[class^="viewerBadge"] {display: none !important;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
