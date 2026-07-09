@@ -1036,6 +1036,7 @@ def inject_global_css() -> None:
             width: var(--eb-sidebar-width) !important;
             min-width: 18rem !important;
             max-width: 55vw !important;
+            box-shadow: 4px 0 12px rgba(17,20,38,0.10) !important;
         }
         #eb-sidebar-resize-handle{
             position: fixed !important;
@@ -1076,6 +1077,7 @@ def inject_global_css() -> None:
             overflow: hidden !important;
             transform: translateX(-100%) !important;
             pointer-events: none !important;
+            box-shadow: none !important;
         }
         section[data-testid="stSidebar"][aria-expanded="false"] div[data-testid="stSidebarContent"]{
             /* stSidebarContent carries its own left/right padding
