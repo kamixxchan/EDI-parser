@@ -1565,38 +1565,61 @@ with st.sidebar:
         if uploaded_file is not None:
             render_uploaded_pdf_preview(uploaded_file)
 
+    # # -- Step 2 + Step 3: Format and Page Range side by side -------------------
+    # # -- Step 2 + Step 3: Format and Page Range side by side -------------------
+    # with st.container(key="sidebar_format_page_row"):
+    #     format_col, page_range_col = st.columns([0.9, 1.1])
+
+    #     with format_col:
+    #         with st.container(border=True, height=155):
+    #             render_sidebar_step_title(2, "Set Format")
+    #             st.caption("Refer to the format samples on the right.")
+    #             document_type = st.selectbox(
+    #                 "Select document format",
+    #                 options=["Formatted 1", "Formatted 2", "Other"],
+    #                 index=0,
+    #                 label_visibility="collapsed",
+    #                 help=(
+    #                     "Formatted 1 is the structured EDI guide format with Segment ID, "
+    #                     "metadata box, and Element Summary table. Other uses the generic "
+    #                     "AI extractor."
+    #                 ),
+    #             )
+
+    #     with page_range_col:
+    #         with st.container(border=True, height=155):
+    #             render_sidebar_step_title(3, "Select Page Range")
+    #             page_col1, page_col2 = st.columns(2)
+    #             with page_col1:
+    #                 page_start = st.number_input("Start", min_value=1, value=1, step=1)
+    #             with page_col2:
+    #                 page_end = st.number_input("End", min_value=1, value=1, step=1)
+
+
     # -- Step 2 + Step 3: Format and Page Range side by side -------------------
     # -- Step 2 + Step 3: Format and Page Range side by side -------------------
-    with st.container(key="sidebar_format_page_row"):
-        format_col, page_range_col = st.columns([0.9, 1.1])
+    with st.container(border=True):
+        render_sidebar_step_title(2, "Set Format")
+        st.caption("Refer to the format samples on the right.")
+        document_type = st.selectbox(
+            "Select document format",
+            options=["Formatted 1", "Formatted 2", "Other"],
+            index=0,
+            label_visibility="collapsed",
+            help=(
+                "Formatted 1 is the structured EDI guide format with Segment ID, "
+                "metadata box, and Element Summary table. Other uses the generic "
+                "AI extractor."
+            ),
+        )
 
-        with format_col:
-            with st.container(border=True, height=155):
-                render_sidebar_step_title(2, "Set Format")
-                st.caption("Refer to the format samples on the right.")
-                document_type = st.selectbox(
-                    "Select document format",
-                    options=["Formatted 1", "Formatted 2", "Other"],
-                    index=0,
-                    label_visibility="collapsed",
-                    help=(
-                        "Formatted 1 is the structured EDI guide format with Segment ID, "
-                        "metadata box, and Element Summary table. Other uses the generic "
-                        "AI extractor."
-                    ),
-                )
-
-        with page_range_col:
-            with st.container(border=True, height=155):
-                render_sidebar_step_title(3, "Select Page Range")
-                page_col1, page_col2 = st.columns(2)
-                with page_col1:
-                    page_start = st.number_input("Start", min_value=1, value=1, step=1)
-                with page_col2:
-                    page_end = st.number_input("End", min_value=1, value=1, step=1)
-
-
-
+    with st.container(border=True):
+        render_sidebar_step_title(3, "Select Page Range")
+        page_col1, page_col2 = st.columns(2)
+        with page_col1:
+            page_start = st.number_input("Start", min_value=1, value=1, step=1)
+        with page_col2:
+            page_end = st.number_input("End", min_value=1, value=1, step=1)
 
 
     # "Other" mode AI extraction settings (DPI / Azure model) are fixed
