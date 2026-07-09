@@ -1010,26 +1010,46 @@ def inject_global_css() -> None:
         The sidebar holds all 5 workflow steps, so it needs real width, but
         it should stay a normal, user-resizable Streamlit sidebar rather
         than a fixed size. Streamlit's own right-edge drag handle already
-        does this natively — the section renders with its own inline
-        `width`, driven by its internal resize state — so nothing here
-        needs to reimplement dragging. All that's needed is a floor on how
-        narrow it can go: `min-width` always wins over a too-small inline
-        width (the browser enlarges the box to match it, regardless of
-        what Streamlit's own state currently holds), so this reliably
-        enforces a usable minimum without depending on Streamlit's
-        specific default/starting width — a value that isn't documented
-        and could change between versions. `max-width` is left generous
-        purely as a guard rail on very wide monitors; Streamlit's own
-        resize state is internally capped well below that on most
-        screens anyway, so in practice this rarely does anything — it's
-        just there so a pathological drag can't push the sidebar past a
-        sensible fraction of the viewport. Nothing here touches the fixed
-        header, main content padding, or the collapsed-sidebar control
-        elsewhere in this file, since none of them read the sidebar's
-        width. */
+        does this natively — up to a point: its internal resize state hard
+        -caps itself at 600px, no matter the viewport, no matter what CSS
+        says. CSS `max-width` can only ever shrink an oversized width, never
+        grow a narrower one, so once Streamlit itself refuses to report
+        more than 600px, there's nothing left for a bigger `max-width` to
+        clamp — that's why a max-width comfortably above 600px (anything
+        past roughly 40vw on a typical laptop screen) had no visible
+        effect. render_sidebar_resize_handle() below adds a small custom
+        handle that drives `--eb-sidebar-width` directly instead, which
+        this `width` rule reads with `!important` — a plain CSS variable
+        update, so it bypasses Streamlit's internal state (and its 600px
+        ceiling) entirely, rather than trying to raise a limit that isn't
+        set in CSS to begin with. Until that handle has been dragged at
+        least once, `--eb-sidebar-width` is unset, which makes this whole
+        `width` declaration invalid and therefore ignored — so nothing
+        changes from today's behavior (Streamlit's own native width) until
+        the user actually drags past what native dragging alone can reach.
+        `min-width` still enforces a floor the same way as before: it
+        always wins over a too-small width regardless of where that width
+        came from. Nothing here touches the fixed header, main content
+        padding, or the collapsed-sidebar control elsewhere in this file,
+        since none of them read the sidebar's width. */
         section[data-testid="stSidebar"][aria-expanded="true"]{
+            width: var(--eb-sidebar-width) !important;
             min-width: 18rem !important;
             max-width: 55vw !important;
+        }
+        #eb-sidebar-resize-handle{
+            position: fixed !important;
+            top: var(--eb-header-height) !important;
+            width: 10px !important;
+            height: calc(100vh - var(--eb-header-height)) !important;
+            cursor: col-resize !important;
+            z-index: 1000000 !important;
+            background: transparent !important;
+            transition: background-color 150ms;
+        }
+        #eb-sidebar-resize-handle:hover,
+        #eb-sidebar-resize-handle.eb-resizing{
+            background: var(--eb-primary-soft) !important;
         }
         section[data-testid="stSidebar"][aria-expanded="false"]{
             /* A transform-only collapse relies on Streamlit's own internal
@@ -1132,6 +1152,131 @@ def inject_global_css() -> None:
         </style>
         """,
         unsafe_allow_html=True,
+    )
+ 
+ 
+def render_sidebar_resize_handle() -> None:
+    """Add a custom drag handle so the sidebar can be resized past ~600px.
+ 
+    Streamlit's own sidebar resize handle exists and works fine up to a
+    point: its internal resize state hard-clamps itself to a maximum of
+    600px, no matter the viewport, no matter what CSS says — every drag,
+    every reset, even restoring a previously-saved width goes through that
+    clamp. It lives inside Streamlit's compiled bundle, not in this file,
+    so there's no CSS-only way to raise it: `max-width` can only ever
+    shrink an oversized inline width, it can never grow a narrower one,
+    and once Streamlit itself refuses to report anything past 600px,
+    there's nothing left for a bigger `max-width` to clamp.
+ 
+    This handle sidesteps that by never touching Streamlit's own width
+    state at all. It drags a CSS custom property, `--eb-sidebar-width`
+    (consumed by the `section[data-testid="stSidebar"]` width rule in
+    inject_global_css()), directly on `<html>`. That's a plain style
+    update — Streamlit's own re-renders never touch it, so a dragged width
+    survives every subsequent rerun instead of snapping back the way a
+    raw inline-width hack would.
+ 
+    Like render_fixed_header(), this has to run via
+    st.components.v1.html(..., height=0) and reach the real page through
+    window.parent.document, since script tags in st.markdown() don't
+    execute in this environment.
+    """
+    components.html(
+        """
+        <script>
+        (function() {
+            var MIN_REM = 18;  // keep in sync with the CSS min-width
+            var MAX_VW = 55;   // keep in sync with the CSS max-width
+            var STORAGE_KEY = "eb_sidebar_width_px";
+ 
+            function remToPx(rem) {
+                var doc = window.parent.document;
+                var fontSize = parseFloat(
+                    window.parent.getComputedStyle(doc.documentElement).fontSize
+                ) || 16;
+                return rem * fontSize;
+            }
+ 
+            function clampPx(px) {
+                var minPx = remToPx(MIN_REM);
+                var maxPx = window.parent.innerWidth * (MAX_VW / 100);
+                return Math.min(maxPx, Math.max(minPx, px));
+            }
+ 
+            function setWidthPx(px, root) {
+                root.style.setProperty("--eb-sidebar-width", px + "px");
+                try { window.parent.localStorage.setItem(STORAGE_KEY, String(px)); }
+                catch (e) {}
+            }
+ 
+            function init() {
+                var doc = window.parent.document;
+                var sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+                if (!sidebar) { return; }
+                var root = doc.documentElement;
+ 
+                // Restore a previously-dragged width, if any. Until this
+                // has been set at least once, --eb-sidebar-width stays
+                // unset and Streamlit's own native width/resize keeps
+                // working exactly as it does today.
+                try {
+                    var stored = parseFloat(window.parent.localStorage.getItem(STORAGE_KEY));
+                    if (!isNaN(stored)) { setWidthPx(clampPx(stored), root); }
+                } catch (e) {}
+ 
+                if (doc.getElementById("eb-sidebar-resize-handle")) { return; }
+                var handle = doc.createElement("div");
+                handle.id = "eb-sidebar-resize-handle";
+                doc.body.appendChild(handle);
+ 
+                function positionHandle() {
+                    var expanded = sidebar.getAttribute("aria-expanded") === "true";
+                    if (!expanded) {
+                        handle.style.display = "none";
+                        return;
+                    }
+                    var rect = sidebar.getBoundingClientRect();
+                    handle.style.display = "block";
+                    handle.style.left = (rect.right - 5) + "px";
+                }
+                positionHandle();
+ 
+                new window.parent.ResizeObserver(positionHandle).observe(sidebar);
+                new window.parent.MutationObserver(positionHandle).observe(
+                    sidebar, { attributes: true, attributeFilter: ["aria-expanded", "style"] }
+                );
+                window.parent.addEventListener("resize", positionHandle);
+ 
+                var dragging = false;
+                handle.addEventListener("mousedown", function(e) {
+                    dragging = true;
+                    handle.classList.add("eb-resizing");
+                    e.preventDefault();
+                });
+                doc.addEventListener("mousemove", function(e) {
+                    if (!dragging) { return; }
+                    // The sidebar is always pinned to the viewport's left
+                    // edge, so the cursor's x-position doubles as the
+                    // desired sidebar width directly.
+                    setWidthPx(clampPx(e.clientX), root);
+                    positionHandle();
+                });
+                doc.addEventListener("mouseup", function() {
+                    dragging = false;
+                    handle.classList.remove("eb-resizing");
+                });
+            }
+ 
+            init();
+            // Streamlit reruns can briefly remove/recreate the sidebar
+            // subtree; re-run init defensively so the handle survives.
+            new window.parent.MutationObserver(init).observe(
+                window.parent.document.body, { childList: true, subtree: true }
+            );
+        })();
+        </script>
+        """,
+        height=0,
     )
  
  
@@ -1558,6 +1703,7 @@ st.set_page_config(
 inject_global_css()
 inject_column_menu_patch()
 render_fixed_header()
+render_sidebar_resize_handle()
  
 # ---------------------------------------------------------------------------
 # Sidebar — all 5 workflow steps live here, top to bottom, in order
