@@ -1,0 +1,9 @@
+streamlit
+pandas
+openpyxl
+pymupdf
+Pillow
+python-dotenv
+pydantic
+azure-ai-documentintelligence
+azure-core
