@@ -1005,6 +1005,7 @@ def inject_global_css() -> None:
             margin-bottom:0.4rem;
         }
 
+
         /* ---- Sidebar workflow (widened, resizable, scrollable) ----
         The sidebar holds all 5 workflow steps, so it needs real width, but
         it should stay a normal, user-resizable Streamlit sidebar rather
@@ -1027,23 +1028,46 @@ def inject_global_css() -> None:
         elsewhere in this file, since none of them read the sidebar's
         width. */
         section[data-testid="stSidebar"][aria-expanded="true"]{
-            min-width: 25rem !important;
+            min-width: 18rem !important;
+            max-width: 55vw !important;
         }
         section[data-testid="stSidebar"][aria-expanded="false"]{
-            /* Streamlit's own collapse animation slides the sidebar off
-            using a pixel offset taken from its internal resize state. If
-            the sidebar's actual on-screen width is ever wider than that
-            internal value (e.g. right after load, before the user has
-            dragged anything, if Streamlit's own starting width happens to
-            be narrower than the `min-width` floor above), that offset can
-            undershoot and leave a visible sliver of sidebar behind when
-            "collapsed". A percentage-based transform instead sizes the
-            slide-off to the sidebar's real current width, so it always
-            fully clears the viewport no matter what Streamlit's own state
-            believes the width to be. */
+            /* A transform-only collapse relies on Streamlit's own internal
+            resize state to correctly zero out the section's width first —
+            if that doesn't happen (or briefly lags behind), whatever
+            width the section still has (plus the left/right padding on
+            stSidebarContent below, which isn't itself scoped to the
+            expanded state) stays visible as a leftover sliver, just
+            shifted rather than actually gone. Forcing the size to zero
+            directly here — instead of only shifting it off-screen — and
+            clipping overflow means nothing inside can render wider than
+            the section itself no matter what Streamlit's internal state
+            currently believes the width to be. The transform is kept as
+            a second layer on top of that: with the box already at zero
+            width, `translateX(-100%)` correctly resolves to 0px and does
+            nothing extra, but it costs nothing to leave in place as a
+            fallback if a future Streamlit version ever changes how the
+            zero-width collapse itself is implemented. */
+            width: 0 !important;
+            min-width: 0 !important;
+            max-width: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            overflow: hidden !important;
             transform: translateX(-100%) !important;
+            pointer-events: none !important;
         }
-
+        section[data-testid="stSidebar"][aria-expanded="false"] div[data-testid="stSidebarContent"]{
+            /* stSidebarContent carries its own left/right padding
+            (below), applied unconditionally — without this, that padding
+            alone would keep rendering a ~2× 1.875rem-wide strip even
+            once the section around it has otherwise gone to zero width. */
+            width: 0 !important;
+            min-width: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+ 
         section[data-testid="stSidebar"] div[data-testid="stSidebarContent"]{
             height: 100%;
             overflow-y: auto;
@@ -1056,7 +1080,7 @@ def inject_global_css() -> None:
             padding-top: 0.1rem !important;
             padding-bottom: 1.725rem !important;
         }
-
+ 
         /* ---- Sidebar step boxes ----
         Each of the 5 workflow steps sits in its own bordered container
         (st.container(border=True)) inside the sidebar. These get a
@@ -1076,7 +1100,7 @@ def inject_global_css() -> None:
         section[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"] > div{
             padding: 1.725rem 1.875rem !important;
         }
-
+ 
         /* ---- Sidebar step title (circled step number + label) ----
         Reuses the stepper's circle look (accent circle, number centered)
         as a small inline icon in front of each of the 5 sidebar section
@@ -1109,11 +1133,11 @@ def inject_global_css() -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
+ 
+ 
 def render_fixed_header() -> None:
     """Insert the company logo into Streamlit's own header bar.
-
+ 
     This deliberately does NOT render a separate `position: fixed` div via
     st.markdown — that approach puts the logo in its own stacking context
     that can end up rendered underneath the sidebar (the bug this replaces).
@@ -1122,19 +1146,19 @@ def render_fixed_header() -> None:
     lives inside the header's own subtree and always has header-level
     stacking priority, matching the CSS in inject_global_css() that pins
     the header above the sidebar and the sidebar below the header.
-
+ 
     st.markdown() script tags don't execute in this environment, so the JS
     has to run via st.components.v1.html(..., height=0), reaching the main
     page through window.parent.document (the component itself renders in
     its own iframe).
-
+ 
     If no file exists yet at COMPANY_LOGO_PATH, a plain text placeholder is
     shown instead so the header still renders cleanly — drop your logo
     image at that path (or update the constant) to have it appear here.
     """
     logo_path = Path(COMPANY_LOGO_PATH)
     logo_inner_html = '<span class="eb-logo-placeholder">COMPANY LOGO</span>'
-
+ 
     if logo_path.exists():
         try:
             logo_bytes = logo_path.read_bytes()
@@ -1143,11 +1167,11 @@ def render_fixed_header() -> None:
             logo_inner_html = f'<img src="data:image/{ext};base64,{logo_b64}" alt="Company logo" />'
         except OSError:
             pass
-
+ 
     # Escape backslashes/backticks so the HTML can sit safely inside a JS
     # template literal.
     safe_html = logo_inner_html.replace("\\", "\\\\").replace("`", "\\`")
-
+ 
     components.html(
         f"""
         <script>
@@ -1155,10 +1179,10 @@ def render_fixed_header() -> None:
             var doc = window.parent.document;
             var header = doc.querySelector('[data-testid="stHeader"]');
             if (!header) {{ return; }}
-
+ 
             var existing = header.querySelector('.eb-header-logo');
             if (existing) {{ existing.remove(); }}
-
+ 
             var wrapper = doc.createElement('div');
             wrapper.className = 'eb-header-logo';
             wrapper.innerHTML = `{safe_html}`;
@@ -1168,8 +1192,8 @@ def render_fixed_header() -> None:
         """,
         height=0,
     )
-
-
+ 
+ 
 def render_sample_pdf_viewer(pdf_path: str, height: int = 420) -> None:
     """Render an inline preview of a sample PDF, or a friendly note if missing."""
     path = Path(pdf_path)
@@ -1179,13 +1203,13 @@ def render_sample_pdf_viewer(pdf_path: str, height: int = 420) -> None:
             "preview here."
         )
         return
-
+ 
     try:
         pdf_bytes = path.read_bytes()
     except OSError as exc:
         st.caption(f"Could not read sample file `{pdf_path}` ({exc}).")
         return
-
+ 
     pdf_viewer(
         pdf_bytes,
         width="100%",
@@ -1199,27 +1223,27 @@ def render_sample_pdf_viewer(pdf_path: str, height: int = 420) -> None:
         mime="application/pdf",
         key=f"sample_dl_{path.name}",
     )
-
-
+ 
+ 
 def render_sample_panel(label: str, document_type: str) -> None:
     """Render the 'Sample <format>' card with a collapsible PDF preview."""
     sample_path = SAMPLE_PDF_PATHS.get(document_type, "")
     expander_key = f"sample_expanded__{document_type.replace(' ', '_')}"
     default_expanded = expander_key not in st.session_state
-
+ 
     with st.container(border=True):
         st.markdown(f"##### {label}")
         st.caption("A reference example of this layout, for orientation.")
         with st.expander("Preview sample PDF", expanded=default_expanded, key=expander_key):
             render_sample_pdf_viewer(sample_path)
-
-
+ 
+ 
 def collapse_sample_panel(document_type: str) -> None:
     """Mark the sample panel for this format as collapsed on the next run."""
     expander_key = f"sample_expanded__{document_type.replace(' ', '_')}"
     st.session_state[expander_key] = False
-
-
+ 
+ 
 def render_sidebar_step_title(number: int, label: str) -> None:
     """Render a sidebar section title with a circled step number in front of
     it, matching the stepper's circle styling."""
@@ -1229,8 +1253,8 @@ def render_sidebar_step_title(number: int, label: str) -> None:
         f"</div>",
         unsafe_allow_html=True,
     )
-
-
+ 
+ 
 def render_uploaded_pdf_preview(uploaded_file) -> None:
     """Render a collapsed-by-default inline preview of the uploaded PDF."""
     with st.expander("Preview uploaded PDF", expanded=False):
@@ -1241,12 +1265,12 @@ def render_uploaded_pdf_preview(uploaded_file) -> None:
             height=420,
             key=f"pdf_viewer_uploaded__{uploaded_file.name}",
         )
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Output table column visibility (toolbar "Columns" dropdown)
 # ---------------------------------------------------------------------------
-
+ 
 AUDIT_COLUMNS = [
     "source_page",
     "segment_id",
@@ -1254,17 +1278,17 @@ AUDIT_COLUMNS = [
     "needs_review",
     "review_reason",
 ]
-
+ 
 DEFAULT_HIDDEN_COLUMNS = ["Description", "Details"]
-
-
+ 
+ 
 def _sync_show_all_checkbox() -> None:
     """Keep the 'Show All' checkbox reflecting whether every column is visible."""
     visible = st.session_state.get("col_visible", {})
     if visible:
         st.session_state["show_all_columns"] = all(visible.values())
-
-
+ 
+ 
 def _sync_hide_audit_checkbox() -> None:
     """Keep the 'Hide audit columns' checkbox reflecting actual audit-column state."""
     visible = st.session_state.get("col_visible", {})
@@ -1273,15 +1297,15 @@ def _sync_hide_audit_checkbox() -> None:
         st.session_state["hide_audit_columns"] = all(
             not visible[c] for c in present
         )
-
-
+ 
+ 
 def _on_column_visibility_toggle(col: str) -> None:
     """Handle an individual column checkbox being (un)checked."""
     st.session_state["col_visible"][col] = st.session_state[f"colvis__{col}"]
     _sync_show_all_checkbox()
     _sync_hide_audit_checkbox()
-
-
+ 
+ 
 def _on_show_all_toggle() -> None:
     """Handle the 'Show All' checkbox: show everything, or restore prior state."""
     visible = st.session_state.get("col_visible", {})
@@ -1298,12 +1322,12 @@ def _on_show_all_toggle() -> None:
                     visible[col] = was_visible
                     st.session_state[f"colvis__{col}"] = was_visible
     _sync_hide_audit_checkbox()
-
-
+ 
+ 
 def _on_hide_audit_toggle() -> None:
     """
     Handle the 'Hide audit columns' checkbox.
-
+ 
     Checking it hides source_page/segment_id/segment_name/needs_review/
     review_reason, remembering each one's prior visibility first.
     Unchecking it restores each audit column to whatever it was set to
@@ -1312,7 +1336,7 @@ def _on_hide_audit_toggle() -> None:
     """
     visible = st.session_state.get("col_visible", {})
     present = [c for c in AUDIT_COLUMNS if c in visible]
-
+ 
     if st.session_state.get("hide_audit_columns"):
         st.session_state["col_visible_audit_snapshot"] = {
             c: visible[c] for c in present
@@ -1326,13 +1350,13 @@ def _on_hide_audit_toggle() -> None:
             restored = snapshot.get(col, True)
             visible[col] = restored
             st.session_state[f"colvis__{col}"] = restored
-
+ 
     _sync_show_all_checkbox()
-
-
+ 
+ 
 def inject_column_menu_patch() -> None:
     """Strip 'Hide column' from the data editor's built-in ⋮ column menu.
-
+ 
     Streamlit doesn't expose an API to selectively disable individual items
     in that menu, so this patches the rendered DOM directly: it watches for
     the menu being opened and hides any menu row whose label is exactly
@@ -1340,7 +1364,7 @@ def inject_column_menu_patch() -> None:
     hide/show is handled instead by the "Columns" toolbar dropdown, whose
     state (unlike the built-in menu's) is tracked in Python so it can
     always be reversed.
-
+ 
     This is best-effort DOM patching, not a public Streamlit API — if a
     future Streamlit release changes the column menu's markup, this may
     need updating to match.
@@ -1377,12 +1401,12 @@ def inject_column_menu_patch() -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Step indicator
 # ---------------------------------------------------------------------------
-
+ 
 def build_workflow_steps(
     document_type: str,
     uploaded_file,
@@ -1398,7 +1422,7 @@ def build_workflow_steps(
         {"label": "Set format", "done": bool(document_type)},
         {"label": "Select page range", "done": (page_start != 1 or page_end != 1)},
     ]
-
+ 
     # "Other" allows multiline_column to be deliberately None (the user
     # picked "extract as-is, no splitting"), so it isn't required for
     # the step to be considered done there. Formatted 1 and Formatted 2
@@ -1411,7 +1435,7 @@ def build_workflow_steps(
         )
     steps.append({"label": "Configure columns", "done": columns_ready})
     steps.append({"label": "Run extraction", "done": extraction_done})
-
+ 
     # A step can only be considered complete if every step before it is
     # also complete. Without this, each step's "done" flag is independent,
     # so e.g. removing the uploaded PDF (which flips "Upload PDF" back to
@@ -1424,14 +1448,14 @@ def build_workflow_steps(
         if not all_done_so_far:
             step["done"] = False
         all_done_so_far = all_done_so_far and step["done"]
-
+ 
     return steps
-
-
+ 
+ 
 def render_stepper(slot, steps: list[dict]) -> None:
     first_pending_seen = False
     html_parts = ['<div class="stepper-wrap">']
-
+ 
     for i, step in enumerate(steps):
         if step["done"]:
             state = "done"
@@ -1443,7 +1467,7 @@ def render_stepper(slot, steps: list[dict]) -> None:
         else:
             state = "pending"
             icon = str(i + 1)
-
+ 
         html_parts.append(
             f'<div class="step {state}">'
             f'<div class="step-line"></div>'
@@ -1451,33 +1475,33 @@ def render_stepper(slot, steps: list[dict]) -> None:
             f'<div class="step-label">{step["label"]}</div>'
             f"</div>"
         )
-
+ 
     html_parts.append("</div>")
-
+ 
     with slot.container():
         st.markdown("".join(html_parts), unsafe_allow_html=True)
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Extraction with live progress (UI-only: the backend call itself is
 # untouched, it just now runs on a worker thread so the UI can keep
 # updating a progress bar / status text while it works).
 # ---------------------------------------------------------------------------
-
+ 
 def estimate_extraction_seconds(document_type: str, page_start: int, page_end: int) -> int:
     page_count = max(1, int(page_end) - int(page_start) + 1)
     base = 6 + (page_count * 3)
     if document_type == "Other":
         base = int(base * 1.6)
     return max(8, base)
-
-
+ 
+ 
 def run_extraction_with_progress(extract_kwargs: dict, estimated_seconds: int):
     """Run extract_tables_from_pdf on a background thread while updating a
     progress bar / status text / elapsed timer in the main thread."""
-
+ 
     result_container = {"df": None, "error": None, "done": False}
-
+ 
     def worker():
         try:
             result_container["df"] = extract_tables_from_pdf(**extract_kwargs)
@@ -1485,60 +1509,60 @@ def run_extraction_with_progress(extract_kwargs: dict, estimated_seconds: int):
             result_container["error"] = exc
         finally:
             result_container["done"] = True
-
+ 
     thread = threading.Thread(target=worker, daemon=True)
     thread.start()
-
+ 
     status_placeholder = st.empty()
     progress_bar = st.progress(0)
     detail_placeholder = st.empty()
-
+ 
     start_time = time.time()
     n_steps = len(STATUS_STEPS)
-
+ 
     while not result_container["done"]:
         elapsed = time.time() - start_time
         fraction = min(elapsed / estimated_seconds, 0.97)
         step_idx = min(int(fraction * n_steps), n_steps - 1)
-
+ 
         status_placeholder.markdown(f"**{STATUS_STEPS[step_idx]}…**")
         progress_bar.progress(fraction)
-
+ 
         remaining = max(0, estimated_seconds - elapsed)
         detail_placeholder.caption(
             f"Elapsed {int(elapsed)}s · est. {int(remaining)}s remaining · "
             f"{int(fraction * 100)}% complete"
         )
-
+ 
         time.sleep(0.25)
-
+ 
     total_elapsed = time.time() - start_time
     progress_bar.progress(1.0)
     status_placeholder.markdown("**Finished**")
     detail_placeholder.caption(f"Completed in {total_elapsed:.1f}s")
-
+ 
     result_container["elapsed_seconds"] = total_elapsed
-
+ 
     return result_container
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Page setup
 # ---------------------------------------------------------------------------
-
+ 
 st.set_page_config(
     page_title="EDI Extractor",
     layout="wide",
 )
-
+ 
 inject_global_css()
 inject_column_menu_patch()
 render_fixed_header()
-
+ 
 # ---------------------------------------------------------------------------
 # Sidebar — all 5 workflow steps live here, top to bottom, in order
 # ---------------------------------------------------------------------------
-
+ 
 with st.sidebar:
     # -- Step 1: Upload PDF -------------------------------------------------
     with st.container(border=True):
@@ -1546,7 +1570,7 @@ with st.sidebar:
         uploaded_file = st.file_uploader("Upload PDF", type=["pdf"], label_visibility="collapsed")
         if uploaded_file is not None:
             render_uploaded_pdf_preview(uploaded_file)
-
+ 
     # -- Step 2 + Step 3: Format and Page Range side by side -------------------
     # -- Step 2 + Step 3: Format and Page Range side by side -------------------
     with st.container(border=True):
@@ -1563,7 +1587,7 @@ with st.sidebar:
                 "AI extractor."
             ),
         )
-
+ 
     with st.container(border=True):
         render_sidebar_step_title(3, "Select Page Range")
         page_col1, page_col2 = st.columns(2)
@@ -1571,26 +1595,26 @@ with st.sidebar:
             page_start = st.number_input("Start", min_value=1, value=1, step=1)
         with page_col2:
             page_end = st.number_input("End", min_value=1, value=1, step=1)
-
-
-
-
-
+ 
+ 
+ 
+ 
+ 
     # "Other" mode AI extraction settings (DPI / Azure model) are fixed
     # internally — see OTHER_MODE_DPI / OTHER_MODE_MODEL above — and are no
     # longer exposed in the UI.
     dpi = OTHER_MODE_DPI
     model = OTHER_MODE_MODEL
-
+ 
     # -- Step 4: Configure Columns --------------------------------------------
     # Same "Extraction Settings" logic/defaults as before, per document
     # type — just relocated into the sidebar's numbered flow.
     with st.container(border=True):
         render_sidebar_step_title(4, "Configure Columns")
-
+ 
         if document_type == "Formatted 1":
             include_audit_columns = True
-
+ 
             st.markdown("###### Table columns from the PDF")
             columns_text = st.text_area(
                 "Write one column per line",
@@ -1599,7 +1623,7 @@ with st.sidebar:
                 key="f1_columns_text",
             )
             expected_columns = split_column_text(columns_text)
-
+ 
             if expected_columns:
                 key_column = st.selectbox(
                     "Key column: a new record starts when this column has a value",
@@ -1610,13 +1634,13 @@ with st.sidebar:
                         "The column that identifies each element; used to anchor where each record begins."
                     ),
                 )
-
+ 
                 guessed_multiline_index = 0
                 for idx, col in enumerate(expected_columns):
                     if "name" in col.lower():
                         guessed_multiline_index = idx
                         break
-
+ 
                 multiline_column = st.selectbox(
                     "Multi-line column containing element name/qualifiers",
                     options=expected_columns,
@@ -1629,12 +1653,12 @@ with st.sidebar:
             else:
                 key_column = ""
                 multiline_column = None
-
+ 
             extra_user_instructions = ""
-
+ 
         elif document_type == "Formatted 2":
             include_audit_columns = True
-
+ 
             st.markdown("###### Table columns from the PDF")
             columns_text = st.text_area(
                 "Write one column per line",
@@ -1642,7 +1666,7 @@ with st.sidebar:
                 height=160,
             )
             expected_columns = split_column_text(columns_text)
-
+ 
             if expected_columns:
                 key_column = st.selectbox(
                     "Key column: a new record starts when this column has a value",
@@ -1652,13 +1676,13 @@ with st.sidebar:
                         "The column that identifies each element; used to anchor where each record begins."
                     ),
                 )
-
+ 
                 guessed_multiline_index = 0
                 for idx, col in enumerate(expected_columns):
                     if "name" in col.lower():
                         guessed_multiline_index = idx
                         break
-
+ 
                 multiline_column = st.selectbox(
                     "Multi-line column containing element name/qualifiers",
                     options=expected_columns,
@@ -1670,12 +1694,12 @@ with st.sidebar:
             else:
                 key_column = ""
                 multiline_column = None
-
+ 
             extra_user_instructions = ""
-
+ 
         else:  # "Other"
             include_audit_columns = True
-
+ 
             st.markdown("###### Table columns from the PDF")
             columns_text = st.text_area(
                 "Write one column per line",
@@ -1683,7 +1707,7 @@ with st.sidebar:
                 height=160,
             )
             expected_columns = split_column_text(columns_text)
-
+ 
             if expected_columns:
                 key_column = st.selectbox(
                     "Key column: a new record starts when this column has a value",
@@ -1693,16 +1717,16 @@ with st.sidebar:
                         "The column that identifies each element; used to anchor where each record begins."
                     ),
                 )
-
+ 
                 no_split_option = "None — extract every column as-is, no splitting"
                 multiline_options = [no_split_option] + expected_columns
-
+ 
                 guessed_multiline_index = 0
                 for idx, col in enumerate(expected_columns):
                     if "name" in col.lower():
                         guessed_multiline_index = idx + 1
                         break
-
+ 
                 multiline_selection = st.selectbox(
                     "Multi-line column containing element name/qualifiers",
                     options=multiline_options,
@@ -1711,29 +1735,29 @@ with st.sidebar:
                         "The column with the element name, description, code/name lists listed across multiple lines."
                     ),
                 )
-
+ 
                 multiline_column = (
                     None if multiline_selection == no_split_option else multiline_selection
                 )
             else:
                 key_column = ""
                 multiline_column = None
-
+ 
             extra_user_instructions = st.text_area(
                 "Extra instructions for AI (optional)",
                 value=DEFAULT_EXTRA_INSTRUCTIONS,
                 height=100,
             )
-
+ 
     # -- Validation ------------------------------------------------------
     validation_errors = []
-
+ 
     if uploaded_file is None:
         validation_errors.append("Please upload a PDF file.")
-
+ 
     if page_end < page_start:
         validation_errors.append("End page must be greater than or equal to start page.")
-
+ 
     if document_type in {"Formatted 1", "Formatted 2", "Other"}:
         if not expected_columns:
             validation_errors.append("Please enter at least one source column.")
@@ -1741,7 +1765,7 @@ with st.sidebar:
             validation_errors.append("Key column must be one of the source columns.")
         if multiline_column and multiline_column not in expected_columns:
             validation_errors.append("Multi-line column must be one of the source columns.")
-
+ 
     # -- Step 5: Run Extraction --------------------------------------------
     with st.container(border=True):
         render_sidebar_step_title(5, "Run Extraction")
@@ -1753,12 +1777,12 @@ with st.sidebar:
             disabled=bool(validation_errors),
             width="stretch",
         )
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Main area — title/captions, stepper, sample PDFs, and results
 # ---------------------------------------------------------------------------
-
+ 
 st.markdown('<div class="eb-eyebrow">EDI 850 · PURCHASE ORDER PARSER</div>', unsafe_allow_html=True)
 st.markdown('<div class="eb-title">EDI Extractor</div>', unsafe_allow_html=True)
 # st.markdown(
@@ -1768,21 +1792,21 @@ st.markdown('<div class="eb-title">EDI Extractor</div>', unsafe_allow_html=True)
 #     unsafe_allow_html=True,
 # )
 st.markdown(f'<span class="eb-chip">{document_type}</span>', unsafe_allow_html=True)
-
+ 
 stepper_slot = st.empty()
-
+ 
 if document_type == "Formatted 1":
     render_sample_panel("The Sample Format 1", document_type)
 elif document_type == "Formatted 2":
     render_sample_panel("The Sample Format 2", document_type)
 else:
     render_sample_panel("The Sample Format (Other)", document_type)
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Stepper render (now that all format-specific settings are known)
 # ---------------------------------------------------------------------------
-
+ 
 current_file_signature = (
     (uploaded_file.name, uploaded_file.size) if uploaded_file is not None else None
 )
@@ -1791,7 +1815,7 @@ extraction_done = (
     and "result_df" in st.session_state
     and st.session_state.get("result_df_source") == current_file_signature
 )
-
+ 
 workflow_steps = build_workflow_steps(
     document_type=document_type,
     uploaded_file=uploaded_file,
@@ -1803,18 +1827,18 @@ workflow_steps = build_workflow_steps(
     extraction_done=extraction_done,
 )
 render_stepper(stepper_slot, workflow_steps)
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Run extraction
 # ---------------------------------------------------------------------------
-
+ 
 if run_button and uploaded_file is not None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         pdf_path = Path(tmp_dir) / uploaded_file.name
         with open(pdf_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
-
+ 
         extract_kwargs = {
             "pdf_path": str(pdf_path),
             "page_start": int(page_start),
@@ -1827,25 +1851,25 @@ if run_button and uploaded_file is not None:
             "document_type": document_type,
             "include_audit_columns": include_audit_columns,
         }
-
+ 
         # All three document types now use expected_columns/key_column; all
         # three also use multiline_column (Formatted 1 splits it into
         # Element Name/Description/Qualifiers/Details, same idea as the
         # other two routes).
         extract_kwargs["multiline_column"] = multiline_column
-
+ 
         est_seconds = estimate_extraction_seconds(document_type, page_start, page_end)
-
+ 
         with st.status("Running extraction…", expanded=True) as status_box:
             result = run_extraction_with_progress(extract_kwargs, est_seconds)
-
+ 
             if result["error"] is not None:
                 status_box.update(label="Extraction failed", state="error", expanded=True)
                 st.error(f"Extraction failed: {result['error']}")
                 st.stop()
-
+ 
             status_box.update(label="Extraction finished", state="complete", expanded=False)
-
+ 
         st.session_state["result_df"] = result["df"]
         st.session_state["result_df_source"] = (uploaded_file.name, uploaded_file.size)
         st.session_state["result_run_info"] = {
@@ -1857,25 +1881,25 @@ if run_button and uploaded_file is not None:
         }
         collapse_sample_panel(document_type)
         st.rerun()
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Results
 # ---------------------------------------------------------------------------
-
+ 
 if "result_df" in st.session_state:
     result_df = st.session_state["result_df"]
-
+ 
     if result_df is None:
         st.error("Backend returned None instead of a DataFrame.")
         st.stop()
-
+ 
     if not isinstance(result_df, pd.DataFrame):
         st.error(f"Backend returned {type(result_df)}, expected pandas DataFrame.")
         st.stop()
-
+ 
     st.markdown("#### Extraction result")
-
+ 
     if result_df.empty:
         st.warning(
             "No rows were extracted. Try changing page range, source columns, "
@@ -1883,12 +1907,12 @@ if "result_df" in st.session_state:
         )
     else:
         total_rows = len(result_df)
-
+ 
         if "needs_review" in result_df.columns:
             review_count = int(result_df["needs_review"].fillna(False).astype(bool).sum())
         else:
             review_count = 0
-
+ 
         with st.container(border=True):
             col1, col2, col3 = st.columns(3)
             col1.metric("Rows extracted", total_rows)
@@ -1897,12 +1921,12 @@ if "result_df" in st.session_state:
                 col3.metric("Review ratio", f"{review_count / total_rows:.0%}")
             else:
                 col3.metric("Review ratio", "0%")
-
+ 
         # -----------------------------------------
         # Extraction Report
         # -----------------------------------------
         run_info = st.session_state.get("result_run_info", {}) or {}
-
+ 
         extraction_report = build_extraction_report(
             df=result_df,
             pdf_filename=run_info.get("pdf_filename"),
@@ -1911,9 +1935,9 @@ if "result_df" in st.session_state:
             page_end=run_info.get("page_end"),
             processing_time_seconds=run_info.get("processing_time_seconds"),
         )
-
+ 
         render_extraction_report(extraction_report)
-
+ 
         # -----------------------------------------
         # Rows needing review section
         # -----------------------------------------
@@ -1921,9 +1945,9 @@ if "result_df" in st.session_state:
             review_mask = result_df["needs_review"].fillna(False).astype(bool)
         else:
             review_mask = pd.Series([False] * len(result_df))
-
+ 
         review_df = result_df[review_mask].copy()
-
+ 
         if not review_df.empty:
             with st.container(border=True):
                 st.markdown("##### Rows needing review")
@@ -1936,13 +1960,13 @@ if "result_df" in st.session_state:
                     width="stretch",
                     height=250,
                 )
-
+ 
         # -----------------------------------------
         # Editable final table
         # -----------------------------------------
         with st.container(border=True):
             st.markdown("##### Editable extraction table")
-
+ 
             # Post-process "Qualifiers" -> "Qualifiers / Code Values" plus its
             # split-out columns, then keep only whichever of the merged/split
             # columns belong to the currently-selected display mode (read from
@@ -1958,7 +1982,7 @@ if "result_df" in st.session_state:
                 final_output_df, qualifier_display_mode
             )
             all_columns = list(final_output_df.columns)
-
+ 
             # Reset column-visibility state whenever the column set changes
             # (e.g. a new extraction run against a different vendor/format).
             if st.session_state.get("col_visible_columns_source") != all_columns:
@@ -1975,7 +1999,7 @@ if "result_df" in st.session_state:
                 st.session_state["col_search_query"] = ""
                 for c in all_columns:
                     st.session_state[f"colvis__{c}"] = c not in DEFAULT_HIDDEN_COLUMNS
-
+ 
             with st.container(key="output_table_toolbar"):
                 left_col, right_col = st.columns([3, 1])
                 with left_col:
@@ -1986,35 +2010,35 @@ if "result_df" in st.session_state:
                             "</div>",
                             unsafe_allow_html=True,
                         )
-
+ 
                         search_query = st.text_input(
                             "Search columns",
                             key="col_search_query",
                             placeholder="Search in columns...",
                             label_visibility="collapsed",
                         )
-
+ 
                         st.checkbox(
                             "Show All",
                             key="show_all_columns",
                             on_change=_on_show_all_toggle,
                         )
-
+ 
                         st.checkbox(
                             "Hide audit columns",
                             key="hide_audit_columns",
                             on_change=_on_hide_audit_toggle,
                         )
-
+ 
                         # st.divider()
-
+ 
                         query = search_query.strip().lower()
                         matching_columns = (
                             [c for c in all_columns if query in c.lower()]
                             if query
                             else all_columns
                         )
-
+ 
                         if not matching_columns:
                             st.caption("No columns match your search.")
                         else:
@@ -2029,7 +2053,7 @@ if "result_df" in st.session_state:
                                         on_change=_on_column_visibility_toggle,
                                         args=(col,),
                                     )
-
+ 
                     st.selectbox(
                         "Code/Qualifier display",
                         options=QUALIFIER_DISPLAY_MODES,
@@ -2038,17 +2062,17 @@ if "result_df" in st.session_state:
                         label_visibility="collapsed",
                         format_func=lambda opt: f"Code/Qualifier display: {opt}",
                     )
-
+ 
                 with right_col:
                     download_slot = st.empty()
-
+ 
             visible_columns = [
                 c for c in all_columns if st.session_state["col_visible"].get(c, True)
             ]
             if not visible_columns:
                 st.warning("Select at least one column to display and export.")
                 visible_columns = all_columns
-
+ 
             edited_df = st.data_editor(
                 final_output_df,
                 column_order=visible_columns,
@@ -2058,10 +2082,10 @@ if "result_df" in st.session_state:
                 hide_index=False,
                 key="final_editable_table",
             )
-
+ 
             export_df = edited_df[visible_columns]
             excel_bytes = dataframe_to_excel_bytes_with_report(export_df, extraction_report)
-
+ 
             download_slot.download_button(
                 ":material/download: Download Excel",
                 data=excel_bytes,
